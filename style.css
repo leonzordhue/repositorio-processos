@@ -21,13 +21,16 @@ body {
     color: #333;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
+    padding: 20px;
 }
 
 .container {
     max-width: 1400px;
     margin: 0 auto;
     background: white;
-    box-shadow: 0 0 30px rgba(0,0,0,0.1);
+    border-radius: 15px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    overflow: hidden;
 }
 
 /* Header */
@@ -42,12 +45,28 @@ header {
 
 .header-content h1 {
     font-size: 2.2em;
-    margin-bottom: 5px;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
 .header-content p {
     opacity: 0.9;
     font-size: 1.1em;
+    margin-bottom: 10px;
+}
+
+.firebase-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.1);
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 0.9em;
+}
+
+.firebase-status i {
+    color: #4caf50;
 }
 
 .user-info {
@@ -148,6 +167,11 @@ header {
     text-align: center;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     border-left: 4px solid var(--secondary);
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
 }
 
 .stat-card i {
@@ -168,6 +192,11 @@ header {
     color: #666;
     font-weight: 600;
 }
+
+.stat-card:nth-child(1) i { color: #e74c3c; }
+.stat-card:nth-child(2) i { color: #27ae60; }
+.stat-card:nth-child(3) i { color: #3498db; }
+.stat-card:nth-child(4) i { color: #f39c12; }
 
 /* Management Section */
 .management-section {
@@ -192,6 +221,11 @@ header {
     padding: 25px;
     border-radius: 12px;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.upload-form:hover {
+    transform: translateY(-3px);
 }
 
 .upload-form h3 {
@@ -255,6 +289,12 @@ select:focus {
     box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
 
+.upload-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
 /* Documents Section */
 .documents-section {
     padding: 30px;
@@ -310,6 +350,7 @@ select:focus {
     transition: all 0.3s ease;
     border: 2px solid transparent;
     position: relative;
+    animation: fadeIn 0.5s ease-out;
 }
 
 .document-card:hover {
@@ -331,7 +372,7 @@ select:focus {
 
 .document-header {
     display: flex;
-    justify-content: between;
+    justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 15px;
 }
@@ -437,6 +478,7 @@ select:focus {
     width: 100%;
     height: 100%;
     background-color: rgba(0,0,0,0.5);
+    animation: fadeIn 0.3s;
 }
 
 .modal-content {
@@ -448,6 +490,17 @@ select:focus {
     max-width: 600px;
     position: relative;
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 .close {
@@ -465,12 +518,18 @@ select:focus {
     color: #000;
 }
 
-/* Loading */
+/* Loading States */
 .loading {
     text-align: center;
-    padding: 40px;
+    padding: 60px 40px;
     color: #666;
     grid-column: 1 / -1;
+}
+
+.loading i {
+    font-size: 2em;
+    margin-bottom: 20px;
+    color: #3498db;
 }
 
 .no-documents {
@@ -480,8 +539,37 @@ select:focus {
     grid-column: 1 / -1;
 }
 
+.no-documents i {
+    font-size: 3em;
+    margin-bottom: 20px;
+    color: #bdc3c7;
+}
+
+/* Footer */
+footer {
+    background: var(--primary);
+    color: white;
+    padding: 20px;
+    text-align: center;
+    margin-top: 40px;
+}
+
+.footer-content {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.footer-content p {
+    margin: 5px 0;
+    opacity: 0.8;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
     header {
         flex-direction: column;
         text-align: center;
@@ -514,5 +602,27 @@ select:focus {
     
     .filters {
         justify-content: center;
+    }
+    
+    .stats {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .header-content h1 {
+        font-size: 1.5em;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .filters {
+        flex-direction: column;
+    }
+    
+    .filter-btn {
+        width: 100%;
     }
 }
