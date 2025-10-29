@@ -6,6 +6,27 @@
     <title>Repositório de Processos - SEINFRA</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+
+    <script>
+        // Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyBInRmnvzxTj7eKsknpdPPjXADUBpqkeB0",
+            authDomain: "repositorio-processos.firebaseapp.com",
+            projectId: "repositorio-processos",
+            storageBucket: "repositorio-processos.firebasestorage.app",
+            messagingSenderId: "82002630747",
+            appId: "1:82002630747:web:82cc032272c67cc0e5877e"
+        };
+
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        console.log("✅ Firebase inicializado!");
+    </script>
 </head>
 <body>
     <div class="container">
@@ -13,6 +34,10 @@
             <div class="header-content">
                 <h1><i class="fas fa-folder-tree"></i> Repositório de Processos - SEINFRA</h1>
                 <p>Sistema de correspondência entre processos e despachos</p>
+                <div class="firebase-status">
+                    <i class="fas fa-cloud"></i>
+                    <span id="statusText">Conectando ao Firebase...</span>
+                </div>
             </div>
             <div class="user-info">
                 <span>Departamento Rodoviário</span>
@@ -53,6 +78,11 @@
                 <i class="fas fa-link"></i>
                 <span id="totalPareados">0</span>
                 <p>Documentos Pareados</p>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-database"></i>
+                <span id="totalDocumentos">0</span>
+                <p>Total</p>
             </div>
         </div>
 
@@ -130,7 +160,10 @@
             </div>
 
             <div class="documents-grid" id="documentsGrid">
-                <!-- Os documentos serão carregados aqui -->
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Carregando documentos do Firebase...</p>
+                </div>
             </div>
         </div>
 
@@ -143,6 +176,14 @@
                 </div>
             </div>
         </div>
+
+        <!-- Footer -->
+        <footer>
+            <div class="footer-content">
+                <p><strong>Sistema de Repositório de Processos</strong> - Departamento Rodoviário SEINFRA</p>
+                <p><i class="fas fa-cloud"></i> Armazenamento em nuvem: Firebase Firestore & Storage</p>
+            </div>
+        </footer>
     </div>
 
     <script src="script.js"></script>
