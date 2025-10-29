@@ -2,32 +2,60 @@
 class DocumentManager {
     constructor() {
         this.documentos = [];
-        this.db = firebase.firestore();
-        this.storage = firebase.storage();
+        this.db = null;
+        this.storage = null;
         this.init();
     }
 
     async init() {
         try {
-            // Testar conexão com Firebase
+            // Verificar se Firebase está carregado
+            if (typeof firebase === 'undefined') {
+                throw new Error('Firebase não carregado');
+            }
+
+            this.db = firebase.firestore();
+            this.storage = firebase.storage();
+            
+            // Testar conexão
             await this.db.collection('test').limit(1).get();
             this.updateStatus('✅ Conectado ao Firebase', 'success');
-            console.log("✅ Firebase conectado com sucesso!");
+            console.log("✅ Firebase inicializado com sucesso!");
+            
+            await this.carregarDocumentos();
+            this.configurarEventListeners();
+            this.atualizarEstatisticas();
         } catch (error) {
-            this.updateStatus('❌ Erro no Firebase', 'error');
-            console.error("❌ Erro na conexão Firebase:", error);
-            return;
+            console.error("❌ Erro na inicialização:", error);
+            this.updateStatus('❌ Erro no Firebase: ' + error.message, 'error');
+            this.mostrarErroFirebase();
         }
-
-        await this.carregarDocumentos();
-        this.configurarEventListeners();
-        this.atualizarEstatisticas();
     }
 
     updateStatus(message, type) {
         const statusElement = document.getElementById('statusText');
-        statusElement.textContent = message;
-        statusElement.style.color = type === 'success' ? '#4caf50' : '#e74c3c';
+        if (statusElement) {
+            statusElement.textContent = message;
+            statusElement.style.color = type === 'success' ? '#4caf50' : '#e74c3c';
+        }
+    }
+
+    mostrarErroFirebase() {
+        const grid = document.getElementById('documentsGrid');
+        grid.innerHTML = `
+            <div class="no-documents" style="grid-column: 1 / -1; text-align: center; padding: 40px;">
+                <h3>❌ Problema de Conexão</h3>
+                <p>Não foi possível conectar ao Firebase. Verifique:</p>
+                <ul style="text-align: left; display: inline-block; margin: 20px 0;">
+                    <li>✅ As regras do Firestore e Storage estão configuradas</li>
+                    <li>✅ A configuração do Firebase está correta</li>
+                    <li>✅ Sua conexão com a internet está ativa</li>
+                </ul>
+                <button onclick="location.reload()" style="background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+                    🔄 Tentar Novamente
+                </button>
+            </div>
+        `;
     }
 
     async carregarDocumentos() {
@@ -55,28 +83,28 @@ class DocumentManager {
 
     configurarEventListeners() {
         // Busca em tempo real
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            if (e.target.value.length >= 2) {
-                this.realizarBusca(e.target.value);
-            } else if (e.target.value.length === 0) {
-                this.renderizarDocumentos();
-            }
-        });
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                if (e.target.value.length >= 2) {
+                    this.realizarBusca(e.target.value);
+                } else if (e.target.value.length === 0) {
+                    this.renderizarDocumentos();
+                }
+            });
 
-        document.getElementById('searchInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.realizarBusca(e.target.value);
-            }
-        });
-
-        // Atualizar estatísticas quando select mudar
-        document.getElementById('despachoProcesso').addEventListener('change', () => {
-            this.atualizarEstatisticas();
-        });
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.realizarBusca(e.target.value);
+                }
+            });
+        }
     }
 
     carregarProcessosNoSelect() {
         const select = document.getElementById('despachoProcesso');
+        if (!select) return;
+
         const currentValue = select.value;
         select.innerHTML = '<option value="">Selecione um processo...</option>';
         
@@ -96,11 +124,12 @@ class DocumentManager {
     }
 
     async adicionarProcesso() {
-        const numero = document.getElementById('processoNumero').value.trim();
-        const descricao = document.getElementById('processoDescricao').value.trim();
+        // Validar campos primeiro
+        const numero = document.getElementById('processoNumero')?.value.trim();
+        const descricao = document.getElementById('processoDescricao')?.value.trim();
         const arquivoInput = document.getElementById('processoUpload');
 
-        if (!numero || !descricao || !arquivoInput.files[0]) {
+        if (!numero || !descricao || !arquivoInput?.files[0]) {
             alert('Por favor, preencha todos os campos do processo.');
             return;
         }
@@ -112,21 +141,53 @@ class DocumentManager {
         }
 
         const button = document.querySelector('.pdf-btn');
+        if (!button) return;
+
         const originalText = button.innerHTML;
         
         try {
+            // Desabilitar botão e mostrar loading
             button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
             button.disabled = true;
 
             console.log("⬆️ Iniciando upload para Firebase...");
             
             const arquivo = arquivoInput.files[0];
-            const fileName = `${numero}_${Date.now()}_${arquivo.name}`;
-            const storageRef = this.storage.ref().child(`processos/${fileName}`);
-            const snapshot = await storageRef.put(arquivo);
-            const downloadURL = await snapshot.ref.getDownloadURL();
+            console.log("📄 Arquivo selecionado:", arquivo.name, "Tamanho:", arquivo.size);
 
-            console.log("✅ Arquivo salvo no Storage:", downloadURL);
+            // Validar tamanho do arquivo (máximo 10MB)
+            if (arquivo.size > 10 * 1024 * 1024) {
+                throw new Error('Arquivo muito grande. Tamanho máximo: 10MB');
+            }
+
+            const fileName = `processos/${numero}_${Date.now()}_${arquivo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            console.log("📁 Nome do arquivo no storage:", fileName);
+
+            const storageRef = this.storage.ref().child(fileName);
+            console.log("🔄 Iniciando upload...");
+
+            // Fazer upload com timeout
+            const uploadTask = storageRef.put(arquivo);
+            
+            // Monitorar progresso
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    console.log(`📊 Upload ${Math.round(progress)}% completo`);
+                    button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Enviando... ${Math.round(progress)}%`;
+                },
+                (error) => {
+                    console.error('❌ Erro durante upload:', error);
+                    throw error;
+                }
+            );
+
+            // Aguardar conclusão do upload
+            const snapshot = await uploadTask;
+            console.log("✅ Upload concluído");
+
+            const downloadURL = await snapshot.ref.getDownloadURL();
+            console.log("🔗 URL do arquivo:", downloadURL);
 
             const novoProcesso = {
                 tipo: 'processo',
@@ -136,19 +197,20 @@ class DocumentManager {
                     nome: arquivo.name,
                     tipo: arquivo.type,
                     url: downloadURL,
-                    nomeArmazenamento: fileName
+                    nomeArmazenamento: fileName,
+                    tamanho: arquivo.size
                 },
                 dataCriacao: new Date().toISOString(),
                 despachos: []
             };
 
-            // Salvar no Firestore
+            console.log("💾 Salvando no Firestore...");
             const docRef = await this.db.collection('documentos').add(novoProcesso);
             novoProcesso.id = docRef.id;
             
             console.log("✅ Processo salvo no Firestore:", docRef.id);
             
-            this.documentos.unshift(novoProcesso); // Adicionar no início
+            this.documentos.unshift(novoProcesso);
             this.carregarProcessosNoSelect();
             this.atualizarEstatisticas();
             this.renderizarDocumentos();
@@ -159,7 +221,17 @@ class DocumentManager {
             
         } catch (error) {
             console.error("❌ Erro ao adicionar processo:", error);
-            alert('Erro ao adicionar processo: ' + error.message);
+            let mensagemErro = 'Erro ao adicionar processo: ';
+            
+            if (error.code === 'storage/unauthorized') {
+                mensagemErro += 'Sem permissão para fazer upload. Verifique as regras do Storage.';
+            } else if (error.code === 'storage/retry-limit-exceeded') {
+                mensagemErro += 'Tempo limite excedido. Verifique sua conexão.';
+            } else {
+                mensagemErro += error.message;
+            }
+            
+            alert(mensagemErro);
             this.updateStatus('❌ Erro ao adicionar processo', 'error');
         } finally {
             button.innerHTML = originalText;
@@ -168,11 +240,11 @@ class DocumentManager {
     }
 
     async adicionarDespacho() {
-        const processoId = document.getElementById('despachoProcesso').value;
-        const tipo = document.getElementById('despachoTipo').value;
+        const processoId = document.getElementById('despachoProcesso')?.value;
+        const tipo = document.getElementById('despachoTipo')?.value;
         const arquivoInput = document.getElementById('despachoUpload');
 
-        if (!processoId || !arquivoInput.files[0]) {
+        if (!processoId || !arquivoInput?.files[0]) {
             alert('Por favor, selecione um processo e um arquivo.');
             return;
         }
@@ -184,6 +256,8 @@ class DocumentManager {
         }
 
         const button = document.querySelector('.word-btn');
+        if (!button) return;
+
         const originalText = button.innerHTML;
         
         try {
@@ -193,12 +267,33 @@ class DocumentManager {
             console.log("⬆️ Iniciando upload do despacho...");
             
             const arquivo = arquivoInput.files[0];
-            const fileName = `${processo.numero}_${tipo}_${Date.now()}_${arquivo.name}`;
-            const storageRef = this.storage.ref().child(`despachos/${fileName}`);
-            const snapshot = await storageRef.put(arquivo);
-            const downloadURL = await snapshot.ref.getDownloadURL();
+            console.log("📄 Arquivo selecionado:", arquivo.name, "Tamanho:", arquivo.size);
 
-            console.log("✅ Despacho salvo no Storage:", downloadURL);
+            // Validar tamanho do arquivo
+            if (arquivo.size > 10 * 1024 * 1024) {
+                throw new Error('Arquivo muito grande. Tamanho máximo: 10MB');
+            }
+
+            const fileName = `despachos/${processo.numero}_${tipo}_${Date.now()}_${arquivo.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+            const storageRef = this.storage.ref().child(fileName);
+
+            const uploadTask = storageRef.put(arquivo);
+            
+            // Monitorar progresso
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    console.log(`📊 Upload ${Math.round(progress)}% completo`);
+                    button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Enviando... ${Math.round(progress)}%`;
+                },
+                (error) => {
+                    console.error('❌ Erro durante upload:', error);
+                    throw error;
+                }
+            );
+
+            const snapshot = await uploadTask;
+            const downloadURL = await snapshot.ref.getDownloadURL();
 
             const novoDespacho = {
                 tipo: 'despacho',
@@ -209,7 +304,8 @@ class DocumentManager {
                     nome: arquivo.name,
                     tipo: arquivo.type,
                     url: downloadURL,
-                    nomeArmazenamento: fileName
+                    nomeArmazenamento: fileName,
+                    tamanho: arquivo.size
                 },
                 dataCriacao: new Date().toISOString()
             };
@@ -218,8 +314,6 @@ class DocumentManager {
             const docRef = await this.db.collection('documentos').add(novoDespacho);
             novoDespacho.id = docRef.id;
 
-            console.log("✅ Despacho salvo no Firestore:", docRef.id);
-
             // Atualizar processo para adicionar o despacho
             if (!processo.despachos) processo.despachos = [];
             processo.despachos.push(novoDespacho.id);
@@ -227,7 +321,7 @@ class DocumentManager {
                 despachos: processo.despachos
             });
 
-            this.documentos.unshift(novoDespacho); // Adicionar no início
+            this.documentos.unshift(novoDespacho);
             this.atualizarEstatisticas();
             this.renderizarDocumentos();
             this.limparFormularioDespacho();
@@ -237,7 +331,17 @@ class DocumentManager {
             
         } catch (error) {
             console.error("❌ Erro ao adicionar despacho:", error);
-            alert('Erro ao adicionar despacho: ' + error.message);
+            let mensagemErro = 'Erro ao adicionar despacho: ';
+            
+            if (error.code === 'storage/unauthorized') {
+                mensagemErro += 'Sem permissão para fazer upload. Verifique as regras do Storage.';
+            } else if (error.code === 'storage/retry-limit-exceeded') {
+                mensagemErro += 'Tempo limite excedido. Verifique sua conexão.';
+            } else {
+                mensagemErro += error.message;
+            }
+            
+            alert(mensagemErro);
             this.updateStatus('❌ Erro ao adicionar despacho', 'error');
         } finally {
             button.innerHTML = originalText;
@@ -251,7 +355,7 @@ class DocumentManager {
             return;
         }
 
-        const searchType = document.getElementById('searchType').value;
+        const searchType = document.getElementById('searchType')?.value || 'all';
         const resultados = this.documentos.filter(doc => {
             const busca = termo.toLowerCase();
             
@@ -278,6 +382,8 @@ class DocumentManager {
 
     renderizarDocumentos(documentos = null) {
         const grid = document.getElementById('documentsGrid');
+        if (!grid) return;
+
         const docsParaRenderizar = documentos || this.documentos;
 
         if (docsParaRenderizar.length === 0) {
@@ -379,6 +485,7 @@ class DocumentManager {
 
         const modal = document.getElementById('documentModal');
         const modalContent = document.getElementById('modalContent');
+        if (!modal || !modalContent) return;
 
         const dataFormatada = new Date(doc.dataCriacao).toLocaleDateString('pt-BR', {
             day: '2-digit',
@@ -416,8 +523,13 @@ class DocumentManager {
     }
 
     formatarTamanhoArquivo(arquivo) {
-        // Esta é uma simulação - em produção, você precisaria obter o tamanho real do arquivo
-        return "~1-5 MB"; // Tamanho estimado para documentos
+        if (arquivo.tamanho) {
+            const bytes = arquivo.tamanho;
+            if (bytes < 1024) return bytes + ' bytes';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+        return "~1-5 MB"; // Estimativa
     }
 
     visualizarProcesso(id) {
@@ -431,6 +543,7 @@ class DocumentManager {
         const despachos = this.documentos.filter(d => d.processoId === processoId);
         const modal = document.getElementById('documentModal');
         const modalContent = document.getElementById('modalContent');
+        if (!modal || !modalContent) return;
 
         modalContent.innerHTML = `
             <h2>📋 Despachos Vinculados</h2>
@@ -489,8 +602,10 @@ class DocumentManager {
                 for (const despacho of despachos) {
                     // Tentar excluir arquivo do Storage
                     try {
-                        const storageRef = this.storage.refFromURL(despacho.arquivo.url);
-                        await storageRef.delete();
+                        if (despacho.arquivo.url) {
+                            const storageRef = this.storage.refFromURL(despacho.arquivo.url);
+                            await storageRef.delete();
+                        }
                     } catch (storageError) {
                         console.warn("Não foi possível excluir arquivo do Storage:", storageError);
                     }
@@ -512,8 +627,10 @@ class DocumentManager {
 
             // Tentar excluir arquivo do Storage
             try {
-                const storageRef = this.storage.refFromURL(docToDelete.arquivo.url);
-                await storageRef.delete();
+                if (docToDelete.arquivo.url) {
+                    const storageRef = this.storage.refFromURL(docToDelete.arquivo.url);
+                    await storageRef.delete();
+                }
             } catch (storageError) {
                 console.warn("Não foi possível excluir arquivo do Storage:", storageError);
             }
@@ -579,43 +696,67 @@ class DocumentManager {
     }
 
     limparFormularioProcesso() {
-        document.getElementById('processoNumero').value = '';
-        document.getElementById('processoDescricao').value = '';
-        document.getElementById('processoUpload').value = '';
+        const processoNumero = document.getElementById('processoNumero');
+        const processoDescricao = document.getElementById('processoDescricao');
+        const processoUpload = document.getElementById('processoUpload');
+        
+        if (processoNumero) processoNumero.value = '';
+        if (processoDescricao) processoDescricao.value = '';
+        if (processoUpload) processoUpload.value = '';
     }
 
     limparFormularioDespacho() {
-        document.getElementById('despachoProcesso').value = '';
-        document.getElementById('despachoTipo').value = 'despacho';
-        document.getElementById('despachoUpload').value = '';
+        const despachoProcesso = document.getElementById('despachoProcesso');
+        const despachoTipo = document.getElementById('despachoTipo');
+        const despachoUpload = document.getElementById('despachoUpload');
+        
+        if (despachoProcesso) despachoProcesso.value = '';
+        if (despachoTipo) despachoTipo.value = 'despacho';
+        if (despachoUpload) despachoUpload.value = '';
     }
 }
 
 // Funções globais
 function performSearch() {
-    const termo = document.getElementById('searchInput').value;
-    documentManager.realizarBusca(termo);
+    if (window.documentManager) {
+        const termo = document.getElementById('searchInput').value;
+        window.documentManager.realizarBusca(termo);
+    }
 }
 
 function clearSearch() {
-    document.getElementById('searchInput').value = '';
-    documentManager.renderizarDocumentos();
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    if (window.documentManager) {
+        window.documentManager.renderizarDocumentos();
+    }
 }
 
 function closeModal() {
-    document.getElementById('documentModal').style.display = 'none';
+    const modal = document.getElementById('documentModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
 function adicionarProcesso() {
-    documentManager.adicionarProcesso();
+    if (window.documentManager) {
+        window.documentManager.adicionarProcesso();
+    }
 }
 
 function adicionarDespacho() {
-    documentManager.adicionarDespacho();
+    if (window.documentManager) {
+        window.documentManager.adicionarDespacho();
+    }
 }
 
 function filterDocuments(filterType) {
-    documentManager.filterDocuments(filterType);
+    if (window.documentManager) {
+        window.documentManager.filterDocuments(filterType);
+    }
 }
 
 // Inicializar aplicação quando o DOM estiver carregado
